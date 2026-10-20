@@ -1,0 +1,780 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Asistent</title>
+<meta name="theme-color" content="#2443b5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Asistent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)} body{margin:0} [hidden]{display:none!important}</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: header + quick-add bar, then two columns — calendar & day agenda | tasks & reminders */
+:root{
+  --bg:#eef1f5; --surface:#ffffff; --sunk:#e4e8ee; --line:#d3d9e2; --fg:#18202c; --muted:#5b6678;
+  --accent:#2443b5; --accent-soft:#e2e8fb; --on-accent:#ffffff;
+  --event:#0f7b74; --event-soft:#dcf1ee; --remind:#a35a00; --remind-soft:#fbecd6; --danger:#b42318; --danger-soft:#fde4e1; --ok:#2f7d32;
+  --f-display:"Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#10141b; --surface:#181e27; --sunk:#202835; --line:#2c3644; --fg:#e7ebf2; --muted:#98a3b5;
+  --accent:#8ea6ff; --accent-soft:#232f52; --on-accent:#0d1220;
+  --event:#4fc7bc; --event-soft:#15322f; --remind:#f0a64a; --remind-soft:#3a2a14; --danger:#ff8a7d; --danger-soft:#3d1b18; --ok:#7bc87e;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#10141b; --surface:#181e27; --sunk:#202835; --line:#2c3644; --fg:#e7ebf2; --muted:#98a3b5;
+  --accent:#8ea6ff; --accent-soft:#232f52; --on-accent:#0d1220;
+  --event:#4fc7bc; --event-soft:#15322f; --remind:#f0a64a; --remind-soft:#3a2a14; --danger:#ff8a7d; --danger-soft:#3d1b18; --ok:#7bc87e;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14.5px;line-height:1.45}
+.wrap{max-width:1180px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:18px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+/* header */
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,4vw,34px);letter-spacing:-.02em;margin:0;line-height:1.05}
+.today{color:var(--muted);margin-top:4px}
+.today b{color:var(--fg);font-weight:600}
+.stats{display:flex;flex-wrap:wrap;gap:8px}
+.stat{display:flex;align-items:baseline;gap:6px;padding:6px 11px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:13px;color:var(--muted)}
+.stat strong{font-family:var(--f-mono);font-size:15px;color:var(--fg);font-weight:500}
+.stat.warn{border-color:var(--danger);background:var(--danger-soft)}
+.stat.warn strong{color:var(--danger)}
+
+.banner{padding:10px 14px;border-radius:var(--r);background:var(--remind-soft);color:var(--fg);border:1px solid var(--remind);font-size:13.5px}
+
+/* quick add */
+.add{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:10px}
+.add-row{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
+.seg{display:inline-flex;background:var(--sunk);border-radius:8px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;padding:6px 11px;border-radius:6px;font-size:13.5px;color:var(--muted);font-weight:500}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.field{display:flex;flex-direction:column;gap:3px;min-width:0}
+.field label{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:500}
+.field input,.field select,.field textarea{background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:7px 9px;min-height:36px}
+.field.grow{flex:1 1 240px}
+.field textarea{resize:vertical;min-height:36px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:7px 13px;min-height:36px;font-weight:500}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+.btn.danger{color:var(--danger);border-color:var(--danger)}
+.btn.danger.armed{background:var(--danger);color:var(--surface)}
+.editing-note{font-size:13px;color:var(--accent);font-weight:500}
+.err{color:var(--danger);font-size:13px}
+
+/* grid */
+.grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:18px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
+.col{display:flex;flex-direction:column;gap:18px;min-width:0}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.panel-h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.panel-h h2{font-family:var(--f-display);font-weight:500;font-size:18px;margin:0;letter-spacing:-.01em;text-wrap:balance}
+.panel-h .sub{color:var(--muted);font-size:13px}
+
+/* calendar */
+.cal-nav{display:flex;gap:4px;align-items:center}
+.icon{width:32px;height:32px;border-radius:7px;border:1px solid var(--line);background:var(--surface);display:inline-grid;place-items:center;font-size:16px;line-height:1}
+.cal{padding:10px}
+.dow,.days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+.dow div{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:center;padding:4px 0}
+.day{aspect-ratio:1/1;max-width:100%;border:1px solid transparent;border-radius:8px;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:0;font-family:var(--f-mono);font-size:13.5px}
+.day:hover{background:var(--sunk)}
+.day.out{color:var(--muted);opacity:.55}
+.day.wknd{color:var(--muted)}
+.day.today{border-color:var(--accent);color:var(--accent);font-weight:500}
+.day.sel{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.dots{display:flex;gap:3px;height:5px}
+.dots i{width:5px;height:5px;border-radius:50%;display:block}
+.d-task{background:var(--accent)} .d-remind{background:var(--remind)} .d-event{background:var(--event)}
+.day.sel .dots i{background:var(--on-accent)}
+.legend{display:flex;flex-wrap:wrap;gap:12px;padding:0 14px 12px;font-size:12px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+
+/* lists */
+.list{list-style:none;margin:0;padding:4px 0}
+.item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:start;padding:9px 14px;border-left:3px solid transparent}
+.item+.item{border-top:1px solid var(--line)}
+.item.k-event{border-left-color:var(--event)}
+.item.k-reminder{border-left-color:var(--remind)}
+.item.k-task{border-left-color:var(--accent)}
+.item.overdue{background:var(--danger-soft)}
+.check{width:20px;height:20px;border-radius:5px;border:1.5px solid var(--muted);background:transparent;margin-top:1px;display:grid;place-items:center;padding:0}
+.check[aria-checked="true"]{background:var(--ok);border-color:var(--ok);color:var(--surface)}
+.check svg{width:12px;height:12px}
+.kind-ic{width:20px;height:20px;display:grid;place-items:center;margin-top:1px}
+.kind-ic svg{width:16px;height:16px}
+.k-event .kind-ic{color:var(--event)} .k-reminder .kind-ic{color:var(--remind)}
+.body{min-width:0;cursor:pointer}
+.title{overflow-wrap:anywhere;font-weight:500}
+.done .title{text-decoration:line-through;color:var(--muted);font-weight:400}
+.meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:2px;font-size:12.5px;color:var(--muted)}
+.note{font-size:13px;color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
+.chip{font-size:11px;padding:1px 7px;border-radius:999px;background:var(--sunk);color:var(--muted);font-weight:500;letter-spacing:.02em}
+.chip.hi{background:var(--danger-soft);color:var(--danger)}
+.chip.late{background:var(--danger);color:var(--surface)}
+.chip.sample{border:1px dashed var(--muted);background:transparent}
+.time{font-family:var(--f-mono);font-size:13px;color:var(--fg);white-space:nowrap}
+.tabs{display:flex;flex-wrap:wrap;gap:4px}
+.tabs button{border:1px solid var(--line);background:transparent;border-radius:999px;padding:4px 10px;font-size:12.5px;color:var(--muted)}
+.tabs button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.empty{padding:22px 14px;color:var(--muted);font-size:13.5px;text-align:center}
+.group-h{padding:10px 14px 2px;font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+.hdr-right{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.gh code{font-family:var(--f-mono);font-size:12.5px}.foot{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;color:var(--muted);font-size:12.5px}
+@media (prefers-reduced-motion:no-preference){.day,.btn,.check{transition:background-color .12s,border-color .12s}}
+
+/* view nav */
+.viewnav{display:flex;gap:4px;border-bottom:1px solid var(--line)}
+.viewnav a{padding:9px 14px;color:var(--muted);text-decoration:none;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px}
+.viewnav a[aria-current="page"]{color:var(--fg);border-bottom-color:var(--accent)}
+.view{display:flex;flex-direction:column;gap:18px}
+
+/* finance */
+.fin-sum{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:860px){.fin-sum{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.fs{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;min-width:0}
+.fs .k{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:500}
+.fs .v{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:22px;font-weight:500;margin-top:4px;overflow-wrap:anywhere}
+.fs .s{font-size:12.5px;color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
+.amt{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+.amt small{display:block;color:var(--muted);font-size:11.5px}
+.c-sub{--c:var(--accent)} .c-ins{--c:var(--event)} .c-loan{--c:var(--remind)} .c-other{--c:var(--muted)}
+.cat-dot{display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--c);margin-right:6px;vertical-align:1px}
+.prow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:9px 14px;align-items:start;cursor:pointer;border-left:3px solid var(--c)}
+.prow+.prow{border-top:1px solid var(--line)}
+.prow:hover{background:var(--sunk)}
+.prow.inactive .pname{color:var(--muted)}
+.pname{font-weight:500;overflow-wrap:anywhere}
+.up{display:grid;grid-template-columns:4.2em minmax(0,1fr) auto;gap:10px;padding:8px 14px;align-items:baseline;border-left:3px solid var(--c)}
+.up+.up{border-top:1px solid var(--line)}
+.up .d{font-family:var(--f-mono);font-size:13px}
+.up.soon .d{color:var(--danger);font-weight:500}
+.mix{padding:14px;display:flex;flex-direction:column;gap:12px}
+.mixbar{display:flex;height:14px;border-radius:4px;overflow:hidden;background:var(--sunk);gap:2px}
+.mixbar span{background:var(--c);min-width:3px}
+.mixleg{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 14px;font-size:13px}
+.mixleg .pct{color:var(--muted);font-family:var(--f-mono);text-align:right}
+.loan{padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.loan+.loan{border-top:1px solid var(--line)}
+.prog{height:8px;background:var(--sunk);border-radius:4px;overflow:hidden}
+.prog span{display:block;height:100%;background:var(--remind)}
+.finform{border:0;border-bottom:1px solid var(--line);border-radius:0}
+.fx-note{font-size:12.5px;color:var(--muted);margin:0}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Asistent</h1>
+      <div class="today" id="today"></div>
+    </div>
+    <div class="hdr-right"><div class="stats" id="stats"></div><button class="btn" type="button" id="ghBtn">GitHub</button></div>
+  </header>
+
+  <section class="panel gh" id="ghPanel" hidden aria-labelledby="ghTitle">
+    <div class="panel-h"><h2 id="ghTitle">Připojení ke GitHubu</h2><button class="btn ghost" type="button" id="ghClose">Zavřít</button></div>
+    <form class="add" id="ghForm" autocomplete="off" style="border:0">
+      <p style="margin:0;color:var(--muted);font-size:13px">Data se ukládají do souboru <code>data.json</code> ve tvém soukromém repozitáři. Token zůstane jen v tomto zařízení.</p>
+      <div class="add-row">
+        <div class="field"><label for="ghOwner">Uživatel</label><input id="ghOwner" required placeholder="matejkraus"></div>
+        <div class="field"><label for="ghRepo">Repozitář s daty</label><input id="ghRepo" required value="asistent-data"></div>
+        <div class="field grow"><label for="ghToken">Token (fine-grained)</label><input id="ghToken" type="password" required placeholder="github_pat_…"></div>
+      </div>
+      <div class="add-row">
+        <button class="btn primary" type="submit" id="ghSave">Připojit</button>
+        <button class="btn" type="button" id="ghExport">Stáhnout zálohu</button>
+        <label class="btn" for="ghImport" style="cursor:pointer">Nahrát zálohu</label><input id="ghImport" type="file" accept="application/json" hidden>
+        <button class="btn ghost" type="button" id="ghDisconnect">Odpojit</button>
+        <span class="err" id="ghErr" hidden></span>
+      </div>
+    </form>
+  </section>
+
+  <div class="banner" id="banner" hidden></div>
+
+  <nav class="viewnav" aria-label="Části listu">
+    <a href="#ukoly" id="navWork" aria-current="page">Úkoly a kalendář</a>
+    <a href="#finance" id="navFin">Finance</a>
+  </nav>
+
+  <div id="viewWork" class="view">
+
+  <form class="add" id="addForm" autocomplete="off">
+    <div class="add-row">
+      <div class="seg" role="group" aria-label="Typ položky" id="typeSeg">
+        <button type="button" data-type="task" aria-pressed="true">Úkol</button>
+        <button type="button" data-type="reminder" aria-pressed="false">Připomínka</button>
+        <button type="button" data-type="event" aria-pressed="false">Událost</button>
+      </div>
+      <span class="editing-note" id="editNote" hidden>Upravuješ položku</span>
+    </div>
+    <div class="add-row">
+      <div class="field grow"><label for="fTitle">Název</label><input id="fTitle" required maxlength="200" placeholder="např. Poslat nabídku klientovi"></div>
+      <div class="field"><label for="fDate">Datum</label><input id="fDate" type="date"></div>
+      <div class="field"><label for="fTime">Čas</label><input id="fTime" type="time"></div>
+      <div class="field" id="endWrap" hidden><label for="fEnd">Do</label><input id="fEnd" type="time"></div>
+      <div class="field" id="prioWrap"><label for="fPrio">Priorita</label>
+        <select id="fPrio"><option value="normal">Běžná</option><option value="high">Vysoká</option></select></div>
+    </div>
+    <div class="add-row">
+      <div class="field grow"><label for="fNote">Poznámka</label><input id="fNote" maxlength="500" placeholder="volitelné"></div>
+      <button class="btn primary" type="submit" id="saveBtn">Přidat</button>
+      <button class="btn danger" type="button" id="delBtn" hidden>Smazat</button>
+      <button class="btn ghost" type="button" id="cancelBtn" hidden>Zrušit</button>
+    </div>
+    <div class="err" id="formErr" hidden></div>
+  </form>
+
+  <div class="grid">
+    <div class="col">
+      <section class="panel" aria-labelledby="calTitle">
+        <div class="panel-h">
+          <h2 id="calTitle"></h2>
+          <div class="cal-nav">
+            <button class="icon" type="button" id="prevM" aria-label="Předchozí měsíc">‹</button>
+            <button class="btn" type="button" id="todayBtn" style="min-height:32px;padding:4px 10px">Dnes</button>
+            <button class="icon" type="button" id="nextM" aria-label="Další měsíc">›</button>
+          </div>
+        </div>
+        <div class="cal">
+          <div class="dow"><div>Po</div><div>Út</div><div>St</div><div>Čt</div><div>Pá</div><div>So</div><div>Ne</div></div>
+          <div class="days" id="days"></div>
+        </div>
+        <div class="legend"><span><i class="dots"><i class="d-task"></i></i>Úkol</span><span><i class="dots"><i class="d-remind"></i></i>Připomínka</span><span><i class="dots"><i class="d-event"></i></i>Událost</span></div>
+      </section>
+
+      <section class="panel" aria-labelledby="dayTitle">
+        <div class="panel-h"><h2 id="dayTitle"></h2><span class="sub" id="daySub"></span></div>
+        <ul class="list" id="dayList"></ul>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="panel" aria-labelledby="taskTitle">
+        <div class="panel-h">
+          <h2 id="taskTitle">Úkoly</h2>
+          <div class="tabs" id="taskTabs">
+            <button type="button" data-f="open" aria-pressed="true">Otevřené</button>
+            <button type="button" data-f="today">Dnes</button>
+            <button type="button" data-f="week">Tento týden</button>
+            <button type="button" data-f="done">Hotové</button>
+          </div>
+        </div>
+        <div id="taskList"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="remTitle">
+        <div class="panel-h"><h2 id="remTitle">Připomínky</h2><span class="sub">nadcházející a nevyřízené</span></div>
+        <ul class="list" id="remList"></ul>
+      </section>
+
+      <div class="foot">
+        <span id="syncState">Načítám…</span>
+        <button class="btn ghost" type="button" id="clearSamples" hidden>Smazat ukázkové položky</button>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <div id="viewFin" class="view" hidden>
+    <div class="fin-sum" id="finSum"></div>
+
+    <div class="grid">
+      <div class="col">
+        <section class="panel" aria-labelledby="upTitle">
+          <div class="panel-h"><h2 id="upTitle">Nejbližší platby</h2><span class="sub">příštích 45 dní</span></div>
+          <ul class="list" id="finUpcoming"></ul>
+        </section>
+        <section class="panel" aria-labelledby="mixTitle">
+          <div class="panel-h"><h2 id="mixTitle">Kam jde měsíčně</h2><span class="sub" id="mixSub"></span></div>
+          <div class="mix" id="finMix"></div>
+        </section>
+        <section class="panel" aria-labelledby="loanTitle" id="loanPanel" hidden>
+          <div class="panel-h"><h2 id="loanTitle">Úvěry</h2></div>
+          <div id="finLoans"></div>
+        </section>
+      </div>
+
+      <div class="col">
+        <section class="panel" aria-labelledby="recTitle">
+          <div class="panel-h">
+            <h2 id="recTitle">Pravidelné platby</h2>
+            <button class="btn" type="button" id="finAddBtn" style="min-height:32px;padding:4px 11px">Přidat platbu</button>
+          </div>
+          <form class="add finform" id="finForm" autocomplete="off" hidden>
+            <div class="add-row">
+              <div class="field grow"><label for="pName">Název</label><input id="pName" required maxlength="120" placeholder="např. Spotify Premium"></div>
+              <div class="field"><label for="pCat">Kategorie</label>
+                <select id="pCat"><option value="sub">Předplatné</option><option value="ins">Pojištění</option><option value="loan">Úvěr</option><option value="other">Ostatní</option></select></div>
+            </div>
+            <div class="add-row">
+              <div class="field"><label for="pAmount">Částka</label><input id="pAmount" type="number" step="0.01" min="0" inputmode="decimal"></div>
+              <div class="field"><label for="pCur">Měna</label><select id="pCur"><option>CZK</option><option>EUR</option><option>USD</option></select></div>
+              <div class="field" id="pCzkWrap" hidden><label for="pCzk">≈ v Kč</label><input id="pCzk" type="number" step="1" min="0"></div>
+              <div class="field"><label for="pPeriod">Perioda</label>
+                <select id="pPeriod"><option value="1">Měsíčně</option><option value="3">Čtvrtletně</option><option value="6">Pololetně</option><option value="12">Ročně</option><option value="0">Jednorázově</option><option value="-1">Zatím nevím</option></select></div>
+              <div class="field"><label for="pNext">Další platba</label><input id="pNext" type="date"></div>
+            </div>
+            <div class="add-row">
+              <div class="field"><label for="pMethod">Jak se platí</label><input id="pMethod" maxlength="80" placeholder="karta, inkaso, převod…"></div>
+              <div class="field grow"><label for="pNote">Poznámka</label><input id="pNote" maxlength="400"></div>
+            </div>
+            <div class="add-row">
+              <button class="btn primary" type="submit" id="pSave">Uložit</button>
+              <button class="btn danger" type="button" id="pDel" hidden>Smazat</button>
+              <button class="btn ghost" type="button" id="pCancel">Zrušit</button>
+              <span class="err" id="pErr" hidden></span>
+            </div>
+          </form>
+          <div id="finList"></div>
+        </section>
+        <p class="fx-note" id="fxNote"></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="store.js"></script>
+<script>
+(function(){
+  const $ = s => document.querySelector(s);
+  const pad = n => String(n).padStart(2,'0');
+  const ymd = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  const parse = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y,m-1,d); };
+  const MONTHS = ['leden','únor','březen','duben','květen','červen','červenec','srpen','září','říjen','listopad','prosinec'];
+  const MONTHS_GEN = ['ledna','února','března','dubna','května','června','července','srpna','září','října','listopadu','prosince'];
+  const DAYS = ['neděle','pondělí','úterý','středa','čtvrtek','pátek','sobota'];
+  const isoWeek = d => { const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); const n=t.getUTCDay()||7; t.setUTCDate(t.getUTCDate()+4-n); const y0=new Date(Date.UTC(t.getUTCFullYear(),0,1)); return Math.ceil(((t-y0)/864e5+1)/7); };
+  const longDate = d => DAYS[d.getDay()]+' '+d.getDate()+'. '+MONTHS_GEN[d.getMonth()];
+  const shortDate = s => { const d=parse(s); return d.getDate()+'. '+(d.getMonth()+1)+'.'; };
+  const cap = s => s.charAt(0).toUpperCase()+s.slice(1);
+
+  const ICON = {
+    check:'<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2.5 6.2l2.3 2.3 4.7-5"/></svg>',
+    event:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>',
+    reminder:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 11V7.5a4 4 0 018 0V11l1.2 1.5H2.8z"/><path d="M6.5 14a1.6 1.6 0 003 0"/></svg>'
+  };
+
+  const today = () => ymd(new Date());
+  const state = { items:[], sel:today(), month:(()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),1);})(), filter:'open', type:'task', editing:null, armed:false };
+  let col = null, local = false;
+
+  /* ---------- data ---------- */
+  async function create(obj){
+    if (col) return col.add(obj);
+    obj.id = 'l'+Date.now()+Math.random().toString(36).slice(2,6); state.items.push(obj); render();
+  }
+  async function patch(id, obj){
+    if (col) return col.doc(id).update(obj);
+    Object.assign(state.items.find(i=>i.id===id)||{}, obj); render();
+  }
+  async function remove(id){
+    if (col) return col.doc(id).delete();
+    state.items = state.items.filter(i=>i.id!==id); render();
+  }
+  function showErr(e){
+    const map={quota_exceeded:'Úložiště je plné. Smaž staré hotové položky a zkus to znovu.',invalid_argument:'Tuhle položku nejde uložit — nemáš k listu oprávnění k úpravám.',revoked:'Přístup k listu byl odebrán.'};
+    const el=$('#formErr'); el.textContent = map[e&&e.code] || 'Uložení se nepovedlo. Zkus to prosím znovu.'; el.hidden=false;
+  }
+
+  /* ---------- helpers ---------- */
+  const nowHM = () => { const d=new Date(); return pad(d.getHours())+':'+pad(d.getMinutes()); };
+  function isOverdue(i){
+    if (i.done || !i.date || i.type==='event') return false;
+    const t = today();
+    if (i.date < t) return true;
+    if (i.type==='reminder' && i.date===t && i.time && i.time <= nowHM()) return true;
+    return false;
+  }
+  const byWhen = (a,b) => ((a.date||'9999')+(a.time||'99')).localeCompare((b.date||'9999')+(b.time||'99')) || (a.createdAt||0)-(b.createdAt||0);
+  function weekRange(){ const d=new Date(); const n=(d.getDay()+6)%7; const s=new Date(d.getFullYear(),d.getMonth(),d.getDate()-n); const e=new Date(s.getFullYear(),s.getMonth(),s.getDate()+6); return [ymd(s),ymd(e)]; }
+  const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const KIND = {task:'Úkol',reminder:'Připomínka',event:'Událost'};
+
+  function itemHTML(i, opts={}){
+    const late = isOverdue(i);
+    const lead = i.type==='event'
+      ? `<span class="kind-ic" aria-hidden="true">${ICON.event}</span>`
+      : `<button type="button" class="check" role="checkbox" aria-checked="${!!i.done}" aria-label="Označit jako hotové: ${esc(i.title)}" data-toggle="${i.id}">${i.done?ICON.check:''}</button>`;
+    const when = [];
+    if (opts.showDate && i.date) when.push(`<span class="mono">${shortDate(i.date)}</span>`);
+    if (i.type==='reminder') when.push(`<span class="chip" style="background:var(--remind-soft);color:var(--remind)">Připomínka</span>`);
+    if (i.priority==='high' && !i.done) when.push('<span class="chip hi">Vysoká priorita</span>');
+    if (late) when.push('<span class="chip late">Po termínu</span>');
+    if (i.sample) when.push('<span class="chip sample">ukázka</span>');
+    const time = i.time ? `<span class="time">${esc(i.time)}${i.end?'–'+esc(i.end):''}</span>` : '<span></span>';
+    return `<li class="item k-${i.type}${i.done?' done':''}${late?' overdue':''}">
+      ${lead}
+      <div class="body" data-edit="${i.id}" tabindex="0" role="button" aria-label="Upravit: ${esc(i.title)}">
+        <div class="title">${esc(i.title)}</div>
+        ${when.length?`<div class="meta">${when.join('')}</div>`:''}
+        ${i.note?`<div class="note">${esc(i.note)}</div>`:''}
+      </div>
+      ${time}
+    </li>`;
+  }
+
+  /* ---------- render ---------- */
+  function render(){
+    const t = today(), td = new Date();
+    $('#today').innerHTML = `<b>${cap(longDate(td))} ${td.getFullYear()}</b> · týden <span class="mono">${isoWeek(td)}</span>`;
+
+    const items = state.items;
+    const openTasks = items.filter(i=>i.type==='task'&&!i.done);
+    const late = items.filter(isOverdue).length;
+    const tToday = openTasks.filter(i=>i.date===t).length;
+    const rToday = items.filter(i=>i.type==='reminder'&&!i.done&&i.date===t).length;
+    const eToday = items.filter(i=>i.type==='event'&&i.date===t).length;
+    $('#stats').innerHTML =
+      `<span class="stat"><strong>${tToday}</strong> úkolů dnes</span>`+
+      `<span class="stat"><strong>${eToday}</strong> událostí dnes</span>`+
+      `<span class="stat"><strong>${rToday}</strong> připomínek dnes</span>`+
+      `<span class="stat${late?' warn':''}"><strong>${late}</strong> po termínu</span>`;
+
+    // calendar
+    const m = state.month;
+    $('#calTitle').textContent = cap(MONTHS[m.getMonth()])+' '+m.getFullYear();
+    const start = new Date(m.getFullYear(), m.getMonth(), 1 - ((m.getDay()+6)%7));
+    const byDate = {};
+    items.forEach(i=>{ if(i.date){ (byDate[i.date] ||= new Set()); if(!(i.done && i.type!=='event')) byDate[i.date].add(i.type); } });
+    let html='';
+    for (let k=0;k<42;k++){
+      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate()+k);
+      const s = ymd(d), set = byDate[s] || new Set();
+      const cls = ['day']; if (d.getMonth()!==m.getMonth()) cls.push('out'); if (d.getDay()===0||d.getDay()===6) cls.push('wknd'); if (s===t) cls.push('today'); if (s===state.sel) cls.push('sel');
+      const dots = ['task','reminder','event'].filter(x=>set.has(x)).map(x=>`<i class="d-${x==='reminder'?'remind':x}"></i>`).join('');
+      html += `<button type="button" class="${cls.join(' ')}" data-day="${s}" aria-label="${longDate(d)}${set.size?', má položky':''}" aria-pressed="${s===state.sel}">${d.getDate()}<span class="dots">${dots}</span></button>`;
+    }
+    $('#days').innerHTML = html;
+
+    // day agenda
+    const sd = parse(state.sel);
+    $('#dayTitle').textContent = state.sel===t ? 'Dnes' : cap(longDate(sd));
+    $('#daySub').textContent = state.sel===t ? longDate(sd) : sd.getFullYear();
+    const dayItems = items.filter(i=>i.date===state.sel).sort((a,b)=>{
+      const ta=a.time||'', tb=b.time||''; if(!ta && tb) return 1; if(ta && !tb) return -1; return ta.localeCompare(tb) || (a.done-b.done);
+    });
+    $('#dayList').innerHTML = dayItems.length ? dayItems.map(i=>itemHTML(i)).join('')
+      : `<li class="empty">Na tento den nic není. Napiš název nahoře — datum se vyplní podle vybraného dne.</li>`;
+
+    // tasks
+    document.querySelectorAll('#taskTabs button').forEach(b=>b.setAttribute('aria-pressed', b.dataset.f===state.filter));
+    const [ws,we] = weekRange();
+    let tasks = items.filter(i=>i.type==='task');
+    let groups;
+    if (state.filter==='done'){
+      tasks = tasks.filter(i=>i.done).sort((a,b)=>(b.doneAt||0)-(a.doneAt||0));
+      groups = [['',tasks]];
+    } else {
+      tasks = tasks.filter(i=>!i.done);
+      if (state.filter==='today') tasks = tasks.filter(i=>i.date && i.date<=t);
+      if (state.filter==='week') tasks = tasks.filter(i=>i.date && i.date<=we);
+      tasks.sort((a,b)=> (b.priority==='high')-(a.priority==='high') || byWhen(a,b));
+      const g = {late:[],today:[],soon:[],none:[]};
+      tasks.forEach(i=>{ if(i.date && i.date<t) g.late.push(i); else if(i.date===t) g.today.push(i); else if(i.date) g.soon.push(i); else g.none.push(i); });
+      groups = [['Po termínu',g.late],['Dnes',g.today],['Naplánované',g.soon],['Bez termínu',g.none]];
+    }
+    const nonEmpty = groups.filter(([,a])=>a.length);
+    $('#taskList').innerHTML = nonEmpty.length
+      ? nonEmpty.map(([h,a])=>`${h?`<div class="group-h">${h} · <span class="mono">${a.length}</span></div>`:''}<ul class="list">${a.map(i=>itemHTML(i,{showDate:true})).join('')}</ul>`).join('')
+      : `<div class="empty">${state.filter==='done'?'Zatím nic hotového.':'Žádné otevřené úkoly v tomto výběru. Přidej úkol formulářem nahoře.'}</div>`;
+
+    // reminders
+    const rem = items.filter(i=>i.type==='reminder' && !i.done).sort(byWhen).slice(0,12);
+    $('#remList').innerHTML = rem.length ? rem.map(i=>itemHTML(i,{showDate:true})).join('')
+      : `<li class="empty">Žádné připomínky. Přepni nahoře na „Připomínka“ a nastav datum a čas.</li>`;
+
+    $('#clearSamples').hidden = !items.some(i=>i.sample);
+    if (!state.editing && !$('#fDate').value && document.activeElement!==$('#fDate')) $('#fDate').value = state.type==='task' ? '' : state.sel;
+  }
+
+  /* ---------- form ---------- */
+  function setType(tp){
+    state.type = tp;
+    document.querySelectorAll('#typeSeg button').forEach(b=>b.setAttribute('aria-pressed', b.dataset.type===tp));
+    $('#endWrap').hidden = tp!=='event';
+    $('#prioWrap').hidden = tp!=='task';
+    $('#fDate').required = tp!=='task';
+    $('#fTitle').placeholder = {task:'např. Poslat nabídku klientovi',reminder:'např. Zavolat do banky',event:'např. Porada týmu'}[tp];
+    if (!state.editing && tp!=='task' && !$('#fDate').value) $('#fDate').value = state.sel;
+  }
+  function resetForm(){
+    state.editing=null; state.armed=false;
+    $('#addForm').reset(); $('#formErr').hidden=true;
+    $('#saveBtn').textContent='Přidat'; $('#delBtn').hidden=true; $('#cancelBtn').hidden=true; $('#editNote').hidden=true;
+    $('#delBtn').classList.remove('armed'); $('#delBtn').textContent='Smazat';
+    setType(state.type);
+    $('#fDate').value = state.type==='task' ? '' : state.sel;
+  }
+  function startEdit(id){
+    const i = state.items.find(x=>x.id===id); if(!i) return;
+    state.editing=id; setType(i.type);
+    $('#fTitle').value=i.title||''; $('#fDate').value=i.date||''; $('#fTime').value=i.time||''; $('#fEnd').value=i.end||'';
+    $('#fPrio').value=i.priority||'normal'; $('#fNote').value=i.note||'';
+    $('#saveBtn').textContent='Uložit změny'; $('#delBtn').hidden=false; $('#cancelBtn').hidden=false; $('#editNote').hidden=false;
+    $('#formErr').hidden=true;
+    $('#addForm').scrollIntoView({block:'nearest',behavior:'smooth'}); $('#fTitle').focus();
+  }
+
+  $('#typeSeg').addEventListener('click', e=>{ const b=e.target.closest('button'); if(b) setType(b.dataset.type); });
+  $('#addForm').addEventListener('submit', async e=>{
+    e.preventDefault();
+    const title=$('#fTitle').value.trim(); if(!title) return;
+    const date=$('#fDate').value;
+    if (state.type!=='task' && !date){ const el=$('#formErr'); el.textContent='Připomínka i událost potřebují datum.'; el.hidden=false; return; }
+    const obj={ type:state.type, title, date, time:$('#fTime').value, end: state.type==='event'?$('#fEnd').value:'', priority: state.type==='task'?$('#fPrio').value:'normal', note:$('#fNote').value.trim() };
+    $('#saveBtn').disabled=true;
+    try{
+      if (state.editing) await patch(state.editing, obj);
+      else await create({...obj, done:false, createdAt:Date.now()});
+      if (date) { state.sel=date; const d=parse(date); state.month=new Date(d.getFullYear(),d.getMonth(),1); }
+      resetForm(); render(); $('#fTitle').focus();
+    }catch(err){ showErr(err); }
+    finally{ $('#saveBtn').disabled=false; }
+  });
+  $('#cancelBtn').addEventListener('click', ()=>{ resetForm(); render(); });
+  $('#delBtn').addEventListener('click', async ()=>{
+    if (!state.armed){ state.armed=true; $('#delBtn').classList.add('armed'); $('#delBtn').textContent='Opravdu smazat?'; return; }
+    try{ await remove(state.editing); resetForm(); render(); }catch(err){ showErr(err); }
+  });
+
+  document.addEventListener('click', async e=>{
+    const day=e.target.closest('[data-day]');
+    if (day){ state.sel=day.dataset.day; const d=parse(state.sel); if(d.getMonth()!==state.month.getMonth()) state.month=new Date(d.getFullYear(),d.getMonth(),1); if(!state.editing && state.type!=='task') $('#fDate').value=state.sel; render(); return; }
+    const tg=e.target.closest('[data-toggle]');
+    if (tg){ const i=state.items.find(x=>x.id===tg.dataset.toggle); if(!i) return; const done=!i.done; try{ await patch(i.id,{done, doneAt: done?Date.now():0}); }catch(err){ showErr(err); } return; }
+    const ed=e.target.closest('[data-edit]'); if (ed) startEdit(ed.dataset.edit);
+    const tab=e.target.closest('#taskTabs button'); if (tab){ state.filter=tab.dataset.f; render(); }
+  });
+  document.addEventListener('keydown', e=>{ const ed=e.target.closest&&e.target.closest('[data-edit]'); if(ed && (e.key==='Enter'||e.key===' ')){ e.preventDefault(); startEdit(ed.dataset.edit);} });
+  $('#prevM').addEventListener('click', ()=>{ state.month=new Date(state.month.getFullYear(),state.month.getMonth()-1,1); render(); });
+  $('#nextM').addEventListener('click', ()=>{ state.month=new Date(state.month.getFullYear(),state.month.getMonth()+1,1); render(); });
+  $('#todayBtn').addEventListener('click', ()=>{ const d=new Date(); state.sel=ymd(d); state.month=new Date(d.getFullYear(),d.getMonth(),1); render(); });
+  let clearArmed=false;
+  $('#clearSamples').addEventListener('click', async ()=>{
+    const b=$('#clearSamples');
+    if(!clearArmed){ clearArmed=true; b.textContent='Opravdu smazat všechny ukázky?'; b.style.color='var(--danger)'; return; }
+    clearArmed=false; b.textContent='Smazat ukázkové položky'; b.style.color='';
+    for (const i of state.items.filter(x=>x.sample)) { try{ await remove(i.id); }catch(err){ showErr(err); break; } }
+  });
+
+  // refresh "po termínu" state every minute (render only, no writes)
+  setInterval(render, 60000);
+
+  setType('task'); render();
+
+  /* ---------- connect ---------- */
+  (async ()=>{
+    const db = window.GHStore.db;
+    if (!db){
+      local=true;
+      $('#banner').textContent='Ukládání teď není dostupné. Můžeš list zkoušet, ale změny se po zavření stránky neuloží.';
+      $('#banner').hidden=false; $('#syncState').textContent='Neuloženo — pouze v tomto okně'; return;
+    }
+    col = db.collection('items');
+    col.onSnapshot(snap=>{
+      state.items = snap.docs.map(d=>({id:d.id, ...d.data()}));
+            render();
+    }, err=>{
+      $('#banner').textContent = err.code==='revoked' ? 'Přístup k listu byl odebrán.' : 'Spojení s úložištěm se přerušilo. Obnov stránku.';
+      $('#banner').hidden=false;
+    });
+  })();
+})();
+</script>
+
+<script>
+(function(){
+  const $ = s => document.querySelector(s);
+  const pad = n => String(n).padStart(2,'0');
+  const ymd = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  const parse = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y,m-1,d); };
+  const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const czk = n => (n==null||isNaN(n)) ? '—' : Math.round(n).toLocaleString('cs-CZ')+' Kč';
+  const money = (a,c) => a==null ? '—' : (c==='CZK' ? Number(a).toLocaleString('cs-CZ',{maximumFractionDigits:2})+' Kč' : (c==='EUR'?'€':'$')+Number(a).toLocaleString('cs-CZ',{minimumFractionDigits:2,maximumFractionDigits:2}));
+  const shortD = s => { const d=parse(s); return d.getDate()+'. '+(d.getMonth()+1)+'.'; };
+  const CAT = {sub:'Předplatné', ins:'Pojištění', loan:'Úvěry', other:'Ostatní'};
+  const PER = {'1':'měsíčně','3':'čtvrtletně','6':'pololetně','12':'ročně','0':'jednorázově','-1':'perioda nezjištěna'};
+  const addM = (d,k,day) => { const y=d.getFullYear(), m=d.getMonth()+k; const last=new Date(y,m+1,0).getDate(); return new Date(y,m,Math.min(day,last)); };
+
+  let items = [], col = null, editing = null, armed = false;
+
+  function occurrences(p, from, to){
+    const out=[]; if(!p.next) return out;
+    const per = Number(p.period); let d = parse(p.next); const day = d.getDate();
+    const end = p.end ? parse(p.end) : null;
+    if (per>0){
+      let k=0; while (d<from && k<600){ k++; d=addM(parse(p.next),per*k,day); }
+      while (d<=to && (!end || d<=end) && k<600){ out.push(new Date(d)); k++; d=addM(parse(p.next),per*k,day); }
+    } else if (d>=from && d<=to) out.push(d);
+    return out;
+  }
+  const today0 = () => { const t=new Date(); return new Date(t.getFullYear(),t.getMonth(),t.getDate()); };
+  function nextDue(p){ const o=occurrences(p, today0(), new Date(2100,0,1)); return o[0]||null; }
+  const monthly = p => (p.active!==false && Number(p.period)>0 && p.czk!=null) ? p.czk/Number(p.period) : 0;
+  function loanState(p){
+    if(!p.installments) return null;
+    const first=parse(p.installments.first), total=p.installments.total, t=today0();
+    let paid=0; for(let k=0;k<total;k++){ if(addM(first,k,first.getDate())<=t) paid++; else break; }
+    return {paid,total,left:total-paid,leftCzk:(total-paid)*(p.czk||0),last:ymd(addM(first,total-1,first.getDate()))};
+  }
+
+  function render(){
+    const act = items.filter(p=>p.active!==false);
+    const t = today0();
+    // summary
+    const mon = act.reduce((s,p)=>s+monthly(p),0);
+    const subMon = act.filter(p=>p.cat==='sub').reduce((s,p)=>s+monthly(p),0);
+    const eom = new Date(t.getFullYear(), t.getMonth()+1, 0);
+    let restMonth=0; act.forEach(p=>{ restMonth += occurrences(p,t,eom).length*(p.czk||0); });
+    let nx=null; act.forEach(p=>{ const d=nextDue(p); if(d && (!nx || d<nx.d)) nx={p,d}; });
+    const unknown = act.filter(p=>p.czk==null||Number(p.period)<0).length;
+    $('#finSum').innerHTML =
+      `<div class="fs"><div class="k">Pravidelně měsíčně</div><div class="v">≈ ${czk(mon)}</div><div class="s">z toho předplatné ${czk(subMon)}</div></div>`+
+      `<div class="fs"><div class="k">Za rok</div><div class="v">≈ ${czk(mon*12)}</div><div class="s">${unknown?unknown+' platby bez částky či periody nejsou započtené':'všechny pravidelné platby'}</div></div>`+
+      `<div class="fs"><div class="k">Do konce měsíce</div><div class="v">${czk(restMonth)}</div><div class="s">ještě odejde do ${eom.getDate()}. ${eom.getMonth()+1}.</div></div>`+
+      `<div class="fs"><div class="k">Příští platba</div><div class="v">${nx?shortD(ymd(nx.d)):'—'}</div><div class="s">${nx?esc(nx.p.name)+' · '+czk(nx.p.czk):'nic naplánováno'}</div></div>`;
+
+    // upcoming
+    const to = new Date(t.getFullYear(),t.getMonth(),t.getDate()+45);
+    const ups=[]; act.forEach(p=>occurrences(p,t,to).forEach(d=>ups.push({p,d})));
+    ups.sort((a,b)=>a.d-b.d);
+    $('#finUpcoming').innerHTML = ups.length ? ups.map(({p,d})=>{
+      const days=Math.round((d-t)/864e5);
+      return `<li class="up c-${p.cat}${days<=3?' soon':''}"><span class="d">${shortD(ymd(d))}</span><span style="min-width:0"><span class="pname">${esc(p.name)}</span><div class="meta" style="margin:0">${days===0?'dnes':days===1?'zítra':'za '+days+' dní'}${p.method?' · '+esc(p.method):''}</div></span><span class="amt">${p.czk!=null?czk(p.czk):'—'}${p.cur!=='CZK'&&p.amount!=null?'<small>'+money(p.amount,p.cur)+'</small>':''}</span></li>`;
+    }).join('') : `<li class="empty">V příštích 45 dnech nic neodchází. Platbu přidáš tlačítkem Přidat platbu.</li>`;
+
+    // mix
+    const byCat={}; act.forEach(p=>{ const m=monthly(p); if(m>0) byCat[p.cat]=(byCat[p.cat]||0)+m; });
+    const cats=Object.keys(byCat).sort((a,b)=>byCat[b]-byCat[a]);
+    $('#mixSub').textContent = mon?('≈ '+czk(mon)+' / měsíc'):'';
+    $('#finMix').innerHTML = cats.length ? `<div class="mixbar" role="img" aria-label="Rozdělení měsíčních plateb">${cats.map(c=>`<span class="c-${c}" style="flex:${byCat[c]}"></span>`).join('')}</div>
+      <div class="mixleg">${cats.map(c=>`<span><i class="cat-dot c-${c}"></i>${CAT[c]}</span><span class="amt">${czk(byCat[c])}</span><span class="pct">${Math.round(byCat[c]/mon*100)} %</span>`).join('')}</div>`
+      : `<div class="empty">Zatím žádné pravidelné platby s částkou.</div>`;
+
+    // loans
+    const loans = act.filter(p=>p.installments);
+    $('#loanPanel').hidden = !loans.length;
+    $('#finLoans').innerHTML = loans.map(p=>{ const s=loanState(p); return `<div class="loan">
+      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><span class="pname">${esc(p.name)}</span><span class="amt">${czk(p.czk)} / měs.</span></div>
+      <div class="prog" role="progressbar" aria-valuemin="0" aria-valuemax="${s.total}" aria-valuenow="${s.paid}"><span style="width:${s.paid/s.total*100}%"></span></div>
+      <div class="meta" style="margin:0"><span class="mono">${s.paid}/${s.total}</span> splátek zaplaceno · zbývá ${s.left} splátek ≈ ${czk(s.leftCzk)} · poslední ${shortD(s.last)} ${s.last.slice(0,4)}</div></div>`; }).join('');
+
+    // list
+    const order=['sub','ins','loan','other'];
+    const groups = order.map(c=>[c, items.filter(p=>p.cat===c).sort((a,b)=>(b.czk||0)-(a.czk||0))]).filter(([,a])=>a.length);
+    $('#finList').innerHTML = groups.length ? groups.map(([c,a])=>`<div class="group-h">${CAT[c]} · <span class="mono">${a.length}</span></div>`+a.map(p=>{
+      const nd=nextDue(p); const per=PER[String(p.period)]||'';
+      const chips=[]; if(p.czk==null) chips.push('<span class="chip hi">doplnit částku</span>'); if(Number(p.period)<0) chips.push('<span class="chip hi">doplnit periodu</span>'); if(p.czk===0) chips.push('<span class="chip">zdarma</span>'); if(p.active===false) chips.push('<span class="chip">neaktivní</span>');
+      return `<div class="prow c-${c}${p.active===false?' inactive':''}" data-pedit="${p.id}" tabindex="0" role="button" aria-label="Upravit ${esc(p.name)}">
+        <div style="min-width:0"><div class="pname">${esc(p.name)}</div>
+        <div class="meta">${per}${nd?' · další '+shortD(ymd(nd)):''}${p.method?' · '+esc(p.method):''} ${chips.join('')}</div>
+        ${p.note?`<div class="note">${esc(p.note)}</div>`:''}</div>
+        <div class="amt">${p.czk!=null?czk(p.czk):'—'}${p.cur!=='CZK'&&p.amount!=null?'<small>'+money(p.amount,p.cur)+'</small>':''}</div></div>`;
+    }).join('')).join('') : `<div class="empty">Žádné platby. Přidej první tlačítkem Přidat platbu.</div>`;
+
+    const fx = items.some(p=>p.cur && p.cur!=='CZK');
+    $('#fxNote').textContent = fx ? 'Platby v eurech a dolarech jsou přepočtené na koruny orientačně, podle kurzu v den přidání. Přesnou částku najdeš na výpisu z účtu.' : '';
+  }
+
+  /* form */
+  function openForm(p){
+    editing = p ? p.id : null; armed=false;
+    $('#finForm').hidden=false; $('#pErr').hidden=true;
+    $('#pName').value=p?.name||''; $('#pCat').value=p?.cat||'sub';
+    $('#pAmount').value=p?.amount??''; $('#pCur').value=p?.cur||'CZK'; $('#pCzk').value=p?.czk??'';
+    $('#pPeriod').value=String(p?.period??1); $('#pNext').value=p?.next||''; $('#pMethod').value=p?.method||''; $('#pNote').value=p?.note||'';
+    $('#pCzkWrap').hidden = $('#pCur').value==='CZK';
+    $('#pDel').hidden=!p; $('#pDel').classList.remove('armed'); $('#pDel').textContent='Smazat';
+    $('#pName').focus();
+  }
+  function closeForm(){ editing=null; $('#finForm').hidden=true; $('#finForm').reset(); }
+  $('#finAddBtn').addEventListener('click',()=>openForm(null));
+  $('#pCancel').addEventListener('click',closeForm);
+  $('#pCur').addEventListener('change',()=>{ $('#pCzkWrap').hidden = $('#pCur').value==='CZK'; });
+  $('#finForm').addEventListener('submit', async e=>{
+    e.preventDefault();
+    const amt = $('#pAmount').value===''?null:Number($('#pAmount').value);
+    const cur = $('#pCur').value;
+    const czkV = cur==='CZK' ? amt : ($('#pCzk').value===''?null:Number($('#pCzk').value));
+    const obj = { name:$('#pName').value.trim(), cat:$('#pCat').value, amount:amt, cur, czk:czkV, period:Number($('#pPeriod').value), next:$('#pNext').value, method:$('#pMethod').value.trim(), note:$('#pNote').value.trim() };
+    if(!obj.name) return;
+    try{
+      if(!col){ if(editing) Object.assign(items.find(i=>i.id===editing),obj); else items.push({...obj,id:'l'+Date.now(),active:true}); render(); }
+      else if(editing) await col.doc(editing).update(obj);
+      else await col.add({...obj, active:true, createdAt:Date.now()});
+      closeForm();
+    }catch(err){ const el=$('#pErr'); el.textContent = err&&err.code==='quota_exceeded' ? 'Úložiště je plné. Smaž nepoužívané položky.' : 'Uložení se nepovedlo. Zkus to znovu.'; el.hidden=false; }
+  });
+  $('#pDel').addEventListener('click', async ()=>{
+    if(!armed){ armed=true; $('#pDel').classList.add('armed'); $('#pDel').textContent='Opravdu smazat?'; return; }
+    try{ if(col) await col.doc(editing).delete(); else { items=items.filter(i=>i.id!==editing); render(); } closeForm(); }catch(err){ $('#pErr').textContent='Smazání se nepovedlo.'; $('#pErr').hidden=false; }
+  });
+  document.addEventListener('click', e=>{ const r=e.target.closest('[data-pedit]'); if(r){ openForm(items.find(i=>i.id===r.dataset.pedit)); $('#finForm').scrollIntoView({block:'nearest',behavior:'smooth'}); } });
+  document.addEventListener('keydown', e=>{ const r=e.target.closest&&e.target.closest('[data-pedit]'); if(r&&(e.key==='Enter'||e.key===' ')){ e.preventDefault(); openForm(items.find(i=>i.id===r.dataset.pedit)); } });
+
+  /* views */
+  let view = location.hash==='#finance' ? 'fin' : 'work';
+  function route(){
+    const fin = view==='fin';
+    $('#viewFin').hidden=!fin; $('#viewWork').hidden=fin;
+    $('#navFin').toggleAttribute('aria-current',fin); $('#navWork').toggleAttribute('aria-current',!fin);
+    if(fin) $('#navFin').setAttribute('aria-current','page'); else $('#navWork').setAttribute('aria-current','page');
+    $('#stats').hidden = fin;
+  }
+  window.addEventListener('hashchange',()=>{ view = location.hash==='#finance'?'fin':'work'; route(); });
+  document.querySelectorAll('.viewnav a').forEach(a=>a.addEventListener('click',e=>{ e.preventDefault(); view = a.id==='navFin'?'fin':'work'; try{ history.replaceState(null,'',a.getAttribute('href')); }catch(_){} route(); }));
+  route(); render();
+
+  (async ()=>{
+    const db = window.GHStore.db;
+    if(!db) return;
+    col = db.collection('finance');
+    col.onSnapshot(s=>{ items=s.docs.map(d=>({id:d.id,...d.data()})); render(); }, ()=>{});
+  })();
+  setInterval(render, 3600000);
+})();
+</script>
+
+<script>
+(function(){
+  const $=s=>document.querySelector(s), S=window.GHStore;
+  S.onStatus(t=>{ const el=$('#syncState'); if(el) el.textContent=t; });
+  const open=()=>{ const c=S.config(); $('#ghPanel').hidden=false; if(c){ $('#ghOwner').value=c.owner; $('#ghRepo').value=c.repo; } $('#ghOwner').focus(); };
+  $('#ghBtn').addEventListener('click',()=>{ $('#ghPanel').hidden ? open() : ($('#ghPanel').hidden=true); });
+  $('#ghClose').addEventListener('click',()=>{ $('#ghPanel').hidden=true; });
+  if(!S.config()) open();
+  $('#ghForm').addEventListener('submit', async e=>{
+    e.preventDefault(); const err=$('#ghErr'); err.hidden=true; $('#ghSave').disabled=true;
+    const r=await S.connect({owner:$('#ghOwner').value.trim(), repo:$('#ghRepo').value.trim(), token:$('#ghToken').value.trim()});
+    $('#ghSave').disabled=false; $('#ghToken').value='';
+    if(r){ err.textContent='Nepodařilo se připojit: '+r+'. Zkontroluj jméno, repozitář a token.'; err.hidden=false; } else $('#ghPanel').hidden=true;
+  });
+  $('#ghDisconnect').addEventListener('click',()=>{ S.disconnect(); });
+  $('#ghExport').addEventListener('click',()=>{
+    const blob=new Blob([JSON.stringify(S.exportJSON(),null,1)],{type:'application/json'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='asistent-zaloha.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  });
+  $('#ghImport').addEventListener('change', async e=>{
+    const f=e.target.files[0]; if(!f) return;
+    try{ S.importJSON(JSON.parse(await f.text())); }catch(_){ const err=$('#ghErr'); err.textContent='Soubor není platná záloha.'; err.hidden=false; }
+  });
+  if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+})();
+</script>
+</body>
+</html>
