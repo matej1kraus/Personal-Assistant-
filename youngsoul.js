@@ -5,7 +5,7 @@
   if (!root || !window.GHStore) return;
   const db = window.GHStore.db;
   const C = { ms: db.collection('ys_milestones'), cards: db.collection('ys_cards'), log: db.collection('ys_log'), mail: db.collection('ys_mail') };
-  const S = { ms: [], cards: [], log: [], mail: [], editMs: null, showDoneMail: false, armed: null };
+  const S = { ms: [], cards: [], log: [], mail: [], editMs: null, showDoneMail: false, armed: null, pick: null, newDue: '', newText: '' };
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const pad = n => String(n).padStart(2, '0');
   const ymd = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
@@ -20,6 +20,30 @@
     const id = 'ys-' + card.id;
     if (card.due && card.col !== 'done' && !card._gone) await items.doc(id).set({ type: 'reminder', title: 'Young Soul: ' + card.title, date: card.due, time: '09:00', end: '', priority: 'normal', note: 'Termín realizace nápadu ze záložky Young Soul.', done: false, sample: false, source: 'youngsoul', cardId: card.id, createdAt: Date.now() });
     else await items.doc(id).delete();
+  }
+  const MONTHS = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec'];
+  const dueBtn = (target, due) => `<button type="button" class="ys-dbtn${due ? '' : ' empty'}" data-pick="${target}" aria-label="Vybrat termín">${due ? shortD(due) + ' ' + due.slice(0, 4) : 'Vybrat datum'}</button>`;
+  function picker(){
+    const m = S.pick.month, y = m.getFullYear(), mo = m.getMonth(), t = todayStr();
+    const sel = S.pick.target === 'new' ? S.newDue : (S.cards.find(c => c.id === S.pick.target) || {}).due || '';
+    const first = new Date(y, mo, 1), start = new Date(y, mo, 1 - ((first.getDay() + 6) % 7));
+    let cells = '';
+    for (let i = 0; i < 42; i++) { const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i), v = ymd(d);
+      cells += `<button type="button" data-pday="${v}" class="${d.getMonth() !== mo ? 'out' : ''}${v === t ? ' today' : ''}${v === sel ? ' sel' : ''}"${v < t ? ' disabled' : ''}>${d.getDate()}</button>`; }
+    const q = (label, v) => `<button type="button" class="ys-mini" data-pday="${v}">${label}</button>`;
+    const plusM = d => { const x = new Date(d + 'T12:00:00'); x.setMonth(x.getMonth() + 1); return ymd(x); };
+    return `<div class="ys-pick" role="dialog" aria-label="Vyber termín">
+      <div class="ys-pick-h"><button type="button" class="ys-mini" data-pnav="-1" aria-label="Předchozí měsíc">‹</button><span>${MONTHS[mo]} ${y}</span><button type="button" class="ys-mini" data-pnav="1" aria-label="Další měsíc">›</button></div>
+      <div class="ys-pick-g">${['Po','Út','St','Čt','Pá','So','Ne'].map(w => `<span class="w">${w}</span>`).join('')}${cells}</div>
+      <div class="ys-pick-q">${q('Zítra', addDays(t, 1))}${q('Za týden', addDays(t, 7))}${q('Za měsíc', plusM(t))}${sel ? q('Bez termínu', '') : ''}<button type="button" class="ys-mini" data-pclose>Zavřít</button></div>
+    </div>`;
+  }
+  async function setDue(target, v){
+    S.pick = null;
+    if (target === 'new') { S.newDue = v; return render(true); }
+    const c = S.cards.find(x => x.id === target); if (!c) return render(true);
+    await C.cards.doc(c.id).update({ due: v });
+    await syncReminder({ ...c, due: v });
   }
   const pl = (n, one, few, many) => n + ' ' + (n === 1 ? one : n >= 2 && n <= 4 ? few : many);
 
@@ -56,6 +80,17 @@
   .ys-due input{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:2px 6px;min-height:28px;font:inherit;color:var(--fg)}
   .ys-card.late{border-color:var(--danger)} .ys-card.soon{border-color:var(--remind)}
   .chip.soon{background:var(--remind-soft);color:var(--remind)}
+  .ys-dbtn{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:3px 8px;min-height:30px;font-size:12.5px;color:var(--fg);font-family:var(--f-mono)}
+  .ys-dbtn.empty{color:var(--muted);font-family:inherit}
+  .ys-pick{border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:8px;display:flex;flex-direction:column;gap:6px;width:100%;max-width:300px}
+  .ys-pick-h{display:flex;justify-content:space-between;align-items:center;font-weight:600;font-size:13px}
+  .ys-pick-g{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center}
+  .ys-pick-g .w{font-size:10.5px;color:var(--muted);text-transform:uppercase;padding:2px 0}
+  .ys-pick-g button{border:0;background:transparent;border-radius:6px;min-height:30px;font-family:var(--f-mono);font-size:12.5px;color:var(--fg)}
+  .ys-pick-g button:hover{background:var(--sunk)} .ys-pick-g button.out{color:var(--muted);opacity:.5}
+  .ys-pick-g button.today{outline:1px solid var(--accent)} .ys-pick-g button.sel{background:var(--accent);color:var(--on-accent)}
+  .ys-pick-g button:disabled{opacity:.25}
+  .ys-pick-q{display:flex;flex-wrap:wrap;gap:4px}
   `;
   document.head.appendChild(css);
 
@@ -102,7 +137,11 @@
     </div>`;
   const $ = s => root.querySelector(s);
 
-  function render(){
+  let pendingRender = false;
+  root.addEventListener('focusout', () => setTimeout(() => { if (pendingRender && !typing()) { pendingRender = false; render(); } }, 0));
+  const typing = () => { const a = document.activeElement; return a && root.contains(a) && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && a.type !== 'button')); };
+  function render(force){
+    if (!force && typing()) { pendingRender = true; return; }
     // souhrn
     const avg = S.ms.length ? Math.round(S.ms.reduce((s, m) => s + (Number(m.pct) || 0), 0) / S.ms.length) : null;
     const doing = S.cards.filter(c => c.col === 'doing').length, idea = S.cards.filter(c => c.col === 'idea').length;
@@ -119,13 +158,13 @@
     $('#ysKan').innerHTML = COLS.map(([k, label]) => {
       const cards = S.cards.filter(c => (c.col || 'idea') === k).sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999') || (a.createdAt || 0) - (b.createdAt || 0));
       return `<div class="ys-col" data-col="${k}"><h3><span>${label}</span><span class="mono">${cards.length}</span></h3>
-        ${k === 'idea' ? `<form class="ys-add" data-addcard><input type="text" aria-label="Nový nápad" placeholder="Nový nápad…" maxlength="160"><label class="ys-due" style="flex:1 1 auto">Zrealizovat do <input type="date" style="flex:1"></label><button class="ys-mini" type="submit">Přidat</button></form>` : ''}
+        ${k === 'idea' ? `<form class="ys-add" data-addcard><input type="text" aria-label="Nový nápad" placeholder="Nový nápad…" maxlength="160" value="${esc(S.newText)}"><span class="ys-due">Zrealizovat do ${dueBtn('new', S.newDue)}</span><button class="ys-mini" type="submit">Přidat</button></form>${S.pick && S.pick.target === 'new' ? picker() : ''}` : ''}
         ${cards.map(c => { const st = k !== 'done' ? dueState(c.due) : ''; return `<div class="ys-card ${st}">
           <div class="t">${esc(c.title)}</div>
           ${st === 'late' ? '<span class="chip late" style="align-self:flex-start">Po termínu</span>' : st === 'soon' ? '<span class="chip soon" style="align-self:flex-start">Blíží se termín</span>' : ''}
           ${c.note ? `<div class="note" style="margin:0">${esc(c.note)}</div>` : ''}
           ${c.mailUrl ? `<div class="meta" style="margin:0"><a href="${esc(c.mailUrl)}" target="_blank" rel="noopener">e-mail</a></div>` : ''}
-          ${k !== 'done' ? `<label class="ys-due">Zrealizovat do <input type="date" data-duein="${c.id}" value="${esc(c.due || '')}"></label>` : (c.due ? `<div class="meta" style="margin:0">termín byl ${shortD(c.due)}</div>` : '')}
+          ${k !== 'done' ? `<span class="ys-due">Zrealizovat do ${dueBtn(c.id, c.due)}</span>${S.pick && S.pick.target === c.id ? picker() : ''}` : (c.due ? `<div class="meta" style="margin:0">termín byl ${shortD(c.due)}</div>` : '')}
           <div class="acts">
             ${k !== 'idea' ? `<button class="ys-mini" data-mv="${c.id}" data-to="${k === 'done' ? 'doing' : 'idea'}" aria-label="Posunout zpět">←</button>` : ''}
             ${k !== 'done' ? `<button class="ys-mini" data-mv="${c.id}" data-to="${k === 'idea' ? 'doing' : 'done'}" aria-label="Posunout dál">→</button>` : ''}
@@ -167,10 +206,10 @@
   root.addEventListener('submit', async e => {
     e.preventDefault();
     if (e.target.matches('[data-addcard]')) {
-      const inp = e.target.querySelector('input[type=text]'), di = e.target.querySelector('input[type=date]'); const t = inp.value.trim(); if (!t) return;
-      const card = { title: t, col: 'idea', due: di.value || '', createdAt: now() };
+      const inp = e.target.querySelector('input[type=text]'); const t = inp.value.trim(); if (!t) return;
+      const card = { title: t, col: 'idea', due: S.newDue || '', createdAt: now() };
       const ref = await C.cards.add(card); if (card.due) await syncReminder({ ...card, id: ref.id });
-      inp.value = ''; di.value = ''; inp.focus();
+      inp.value = ''; S.newText = ''; S.newDue = ''; S.pick = null; render(true); root.querySelector('[data-addcard] input[type=text]').focus();
     } else if (e.target.id === 'ysMsForm') {
       const obj = { name: $('#ysMsName').value.trim(), date: $('#ysMsDate').value, pct: Math.max(0, Math.min(100, Number($('#ysMsPct').value) || 0)), note: $('#ysMsNote').value.trim() };
       if (!obj.name) return;
@@ -185,13 +224,17 @@
   function closeMs(){ S.editMs = null; $('#ysMsForm').hidden = true; }
   root.addEventListener('click', async e => {
     const b = e.target.closest('button, [data-ms]'); if (!b) return;
+    if (b.dataset.pick) { const tg = b.dataset.pick; if (S.pick && S.pick.target === tg) { S.pick = null; return render(true); } const cur = tg === 'new' ? S.newDue : (S.cards.find(c => c.id === tg) || {}).due; const base = cur ? new Date(cur + 'T12:00:00') : new Date(); S.pick = { target: tg, month: new Date(base.getFullYear(), base.getMonth(), 1) }; return render(true); }
+    if (b.dataset.pnav) { const m = S.pick.month; S.pick.month = new Date(m.getFullYear(), m.getMonth() + Number(b.dataset.pnav), 1); return render(true); }
+    if (b.dataset.pday !== undefined) return setDue(S.pick.target, b.dataset.pday);
+    if (b.hasAttribute('data-pclose')) { S.pick = null; return render(true); }
     if (b.id === 'ysMsAdd') return openMs(null);
     if (b.id === 'ysMsCancel') return closeMs();
     if (b.id === 'ysMsDel') { if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = 'Opravdu smazat?'; return; } await C.ms.doc(S.editMs).delete(); return closeMs(); }
-    if (b.id === 'ysMailToggle') { S.showDoneMail = !S.showDoneMail; return render(); }
+    if (b.id === 'ysMailToggle') { S.showDoneMail = !S.showDoneMail; return render(true); }
     if (b.dataset.ms) return openMs(S.ms.find(m => m.id === b.dataset.ms));
     if (b.dataset.mv) { const c = S.cards.find(x => x.id === b.dataset.mv); await C.cards.doc(c.id).update({ col: b.dataset.to, movedAt: now() }); if (c.due) await syncReminder({ ...c, col: b.dataset.to }); return; }
-    if (b.dataset.delcard) { if (S.armed !== b.dataset.delcard) { S.armed = b.dataset.delcard; return render(); } S.armed = null; const c = S.cards.find(x => x.id === b.dataset.delcard); await C.cards.doc(c.id).delete(); if (c.due) await syncReminder({ ...c, _gone: true }); return; }
+    if (b.dataset.delcard) { if (S.armed !== b.dataset.delcard) { S.armed = b.dataset.delcard; return render(true); } S.armed = null; const c = S.cards.find(x => x.id === b.dataset.delcard); await C.cards.doc(c.id).delete(); if (c.due) await syncReminder({ ...c, _gone: true }); return; }
     if (b.dataset.mailcard) {
       const m = S.mail.find(x => x.id === b.dataset.mailcard);
       const ref = await C.cards.add({ title: m.subject || 'E-mail od ' + m.from, note: 'Od: ' + m.from, col: 'idea', mailUrl: m.url || '', createdAt: now() });
@@ -199,12 +242,7 @@
     }
     if (b.dataset.maildone) { const m = S.mail.find(x => x.id === b.dataset.maildone); return C.mail.doc(m.id).update({ handled: !m.handled }); }
   });
-  root.addEventListener('change', async e => {
-    const i = e.target.closest('[data-duein]'); if (!i) return;
-    const c = S.cards.find(x => x.id === i.dataset.duein); if (!c) return;
-    await C.cards.doc(c.id).update({ due: i.value });
-    await syncReminder({ ...c, due: i.value });
-  });
+  root.addEventListener('input', e => { if (e.target.closest('[data-addcard]')) S.newText = e.target.value; });
   root.addEventListener('keydown', e => { const r = e.target.closest && e.target.closest('[data-ms]'); if (r && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openMs(S.ms.find(m => m.id === r.dataset.ms)); } });
 
   const list = snap => snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -212,5 +250,5 @@
   C.cards.onSnapshot(s => { S.cards = list(s); render(); });
   C.log.onSnapshot(s => { S.log = list(s); render(); });
   C.mail.onSnapshot(s => { S.mail = list(s); render(); });
-  render();
+  render(true);
 })();
