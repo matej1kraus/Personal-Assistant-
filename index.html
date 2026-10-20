@@ -150,7 +150,7 @@ h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,4vw,34px);l
 .fs .s{font-size:12.5px;color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
 .amt{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
 .amt small{display:block;color:var(--muted);font-size:11.5px}
-.c-sub{--c:var(--accent)} .c-ins{--c:var(--event)} .c-loan{--c:var(--remind)} .c-other{--c:var(--muted)}
+.c-income{--c:var(--ok)} .c-income .amt{color:var(--ok)} .c-sub{--c:var(--accent)} .c-ins{--c:var(--event)} .c-loan{--c:var(--remind)} .c-other{--c:var(--muted)}
 .cat-dot{display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--c);margin-right:6px;vertical-align:1px}
 .prow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:9px 14px;align-items:start;cursor:pointer;border-left:3px solid var(--c)}
 .prow+.prow{border-top:1px solid var(--line)}
@@ -319,7 +319,7 @@ h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,4vw,34px);l
             <div class="add-row">
               <div class="field grow"><label for="pName">Název</label><input id="pName" required maxlength="120" placeholder="např. Spotify Premium"></div>
               <div class="field"><label for="pCat">Kategorie</label>
-                <select id="pCat"><option value="sub">Předplatné</option><option value="ins">Pojištění</option><option value="loan">Úvěr</option><option value="other">Ostatní</option></select></div>
+                <select id="pCat"><option value="sub">Předplatné</option><option value="ins">Pojištění</option><option value="loan">Úvěr</option><option value="other">Ostatní</option><option value="income">Příjem</option></select></div>
             </div>
             <div class="add-row">
               <div class="field"><label for="pAmount">Částka</label><input id="pAmount" type="number" step="0.01" min="0" inputmode="decimal"></div>
@@ -607,7 +607,7 @@ h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,4vw,34px);l
   const czk = n => (n==null||isNaN(n)) ? '—' : Math.round(n).toLocaleString('cs-CZ')+' Kč';
   const money = (a,c) => a==null ? '—' : (c==='CZK' ? Number(a).toLocaleString('cs-CZ',{maximumFractionDigits:2})+' Kč' : (c==='EUR'?'€':'$')+Number(a).toLocaleString('cs-CZ',{minimumFractionDigits:2,maximumFractionDigits:2}));
   const shortD = s => { const d=parse(s); return d.getDate()+'. '+(d.getMonth()+1)+'.'; };
-  const CAT = {sub:'Předplatné', ins:'Pojištění', loan:'Úvěry', other:'Ostatní'};
+  const CAT = {income:'Příjmy', sub:'Předplatné', ins:'Pojištění', loan:'Úvěry', other:'Ostatní'};
   const PER = {'1':'měsíčně','3':'čtvrtletně','6':'pololetně','12':'ročně','0':'jednorázově','-1':'perioda nezjištěna'};
   const addM = (d,k,day) => { const y=d.getFullYear(), m=d.getMonth()+k; const last=new Date(y,m+1,0).getDate(); return new Date(y,m,Math.min(day,last)); };
 
@@ -625,7 +625,7 @@ h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,4vw,34px);l
   }
   const today0 = () => { const t=new Date(); return new Date(t.getFullYear(),t.getMonth(),t.getDate()); };
   function nextDue(p){ const o=occurrences(p, today0(), new Date(2100,0,1)); return o[0]||null; }
-  const monthly = p => (p.active!==false && Number(p.period)>0 && p.czk!=null) ? p.czk/Number(p.period) : 0;
+  const monthly = p => (p.active!==false && p.cat!=='income' && Number(p.period)>0 && p.czk!=null) ? p.czk/Number(p.period) : 0;
   function loanState(p){
     if(!p.installments) return null;
     const first=parse(p.installments.first), total=p.installments.total, t=today0();
@@ -640,13 +640,13 @@ h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,4vw,34px);l
     const mon = act.reduce((s,p)=>s+monthly(p),0);
     const subMon = act.filter(p=>p.cat==='sub').reduce((s,p)=>s+monthly(p),0);
     const eom = new Date(t.getFullYear(), t.getMonth()+1, 0);
-    let restMonth=0; act.forEach(p=>{ restMonth += occurrences(p,t,eom).length*(p.czk||0); });
-    let nx=null; act.forEach(p=>{ const d=nextDue(p); if(d && (!nx || d<nx.d)) nx={p,d}; });
+    let restMonth=0, incMonth=0; const som=new Date(t.getFullYear(),t.getMonth(),1); act.forEach(p=>{ if(p.cat==='income') incMonth += occurrences(p,som,eom).length*(p.czk||0); else restMonth += occurrences(p,t,eom).length*(p.czk||0); });
+    let nx=null; act.forEach(p=>{ if(p.cat==='income') return; const d=nextDue(p); if(d && (!nx || d<nx.d)) nx={p,d}; });
     const unknown = act.filter(p=>p.czk==null||Number(p.period)<0).length;
     $('#finSum').innerHTML =
       `<div class="fs"><div class="k">Pravidelně měsíčně</div><div class="v">≈ ${czk(mon)}</div><div class="s">z toho předplatné ${czk(subMon)}</div></div>`+
       `<div class="fs"><div class="k">Za rok</div><div class="v">≈ ${czk(mon*12)}</div><div class="s">${unknown?unknown+' platby bez částky či periody nejsou započtené':'všechny pravidelné platby'}</div></div>`+
-      `<div class="fs"><div class="k">Do konce měsíce</div><div class="v">${czk(restMonth)}</div><div class="s">ještě odejde do ${eom.getDate()}. ${eom.getMonth()+1}.</div></div>`+
+      `<div class="fs"><div class="k">Do konce měsíce</div><div class="v">${czk(restMonth)}</div><div class="s">ještě odejde do ${eom.getDate()}. ${eom.getMonth()+1}.${incMonth?' · příjmy tento měsíc +'+czk(incMonth):''}</div></div>`+
       `<div class="fs"><div class="k">Příští platba</div><div class="v">${nx?shortD(ymd(nx.d)):'—'}</div><div class="s">${nx?esc(nx.p.name)+' · '+czk(nx.p.czk):'nic naplánováno'}</div></div>`;
 
     // upcoming
@@ -655,7 +655,7 @@ h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,4vw,34px);l
     ups.sort((a,b)=>a.d-b.d);
     $('#finUpcoming').innerHTML = ups.length ? ups.map(({p,d})=>{
       const days=Math.round((d-t)/864e5);
-      return `<li class="up c-${p.cat}${days<=3?' soon':''}"><span class="d">${shortD(ymd(d))}</span><span style="min-width:0"><span class="pname">${esc(p.name)}</span><div class="meta" style="margin:0">${days===0?'dnes':days===1?'zítra':'za '+days+' dní'}${p.method?' · '+esc(p.method):''}</div></span><span class="amt">${p.czk!=null?czk(p.czk):'—'}${p.cur!=='CZK'&&p.amount!=null?'<small>'+money(p.amount,p.cur)+'</small>':''}</span></li>`;
+      return `<li class="up c-${p.cat}${days<=3?' soon':''}"><span class="d">${shortD(ymd(d))}</span><span style="min-width:0"><span class="pname">${esc(p.name)}</span><div class="meta" style="margin:0">${days===0?'dnes':days===1?'zítra':'za '+days+' dní'}${p.method?' · '+esc(p.method):''}</div></span><span class="amt">${p.czk!=null?(p.cat==='income'?'+':'')+czk(p.czk):'—'}${p.cur!=='CZK'&&p.amount!=null?'<small>'+money(p.amount,p.cur)+'</small>':''}</span></li>`;
     }).join('') : `<li class="empty">V příštích 45 dnech nic neodchází. Platbu přidáš tlačítkem Přidat platbu.</li>`;
 
     // mix
@@ -675,7 +675,7 @@ h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,4vw,34px);l
       <div class="meta" style="margin:0"><span class="mono">${s.paid}/${s.total}</span> splátek zaplaceno · zbývá ${s.left} splátek ≈ ${czk(s.leftCzk)} · poslední ${shortD(s.last)} ${s.last.slice(0,4)}</div></div>`; }).join('');
 
     // list
-    const order=['sub','ins','loan','other'];
+    const order=['income','sub','ins','loan','other'];
     const groups = order.map(c=>[c, items.filter(p=>p.cat===c).sort((a,b)=>(b.czk||0)-(a.czk||0))]).filter(([,a])=>a.length);
     $('#finList').innerHTML = groups.length ? groups.map(([c,a])=>`<div class="group-h">${CAT[c]} · <span class="mono">${a.length}</span></div>`+a.map(p=>{
       const nd=nextDue(p); const per=PER[String(p.period)]||'';
@@ -684,7 +684,7 @@ h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,4vw,34px);l
         <div style="min-width:0"><div class="pname">${esc(p.name)}</div>
         <div class="meta">${per}${nd?' · další '+shortD(ymd(nd)):''}${p.method?' · '+esc(p.method):''} ${chips.join('')}</div>
         ${p.note?`<div class="note">${esc(p.note)}</div>`:''}</div>
-        <div class="amt">${p.czk!=null?czk(p.czk):'—'}${p.cur!=='CZK'&&p.amount!=null?'<small>'+money(p.amount,p.cur)+'</small>':''}</div></div>`;
+        <div class="amt">${p.czk!=null?(p.cat==='income'?'+':'')+czk(p.czk):'—'}${p.cur!=='CZK'&&p.amount!=null?'<small>'+money(p.amount,p.cur)+'</small>':''}</div></div>`;
     }).join('')).join('') : `<div class="empty">Žádné platby. Přidej první tlačítkem Přidat platbu.</div>`;
 
     const fx = items.some(p=>p.cur && p.cur!=='CZK');
