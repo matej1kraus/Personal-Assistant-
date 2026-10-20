@@ -11,6 +11,16 @@
   const ymd = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
   const shortD = s => { if (!s) return ''; const d = new Date(s.length === 10 ? s + 'T12:00:00' : s); return d.getDate() + '. ' + (d.getMonth() + 1) + '.'; };
   const COLS = [['idea', 'Nápad'], ['doing', 'Dělám'], ['done', 'Hotovo']];
+  const todayStr = () => ymd(new Date());
+  const addDays = (d, n) => { const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + n); return ymd(x); };
+  const dueState = due => !due ? '' : due < todayStr() ? 'late' : due <= addDays(todayStr(), 3) ? 'soon' : '';
+  const items = db.collection('items');
+  // připomínka v Úkolech a kalendáři (+ ranní přehled) na den termínu v 9:00
+  async function syncReminder(card){
+    const id = 'ys-' + card.id;
+    if (card.due && card.col !== 'done' && !card._gone) await items.doc(id).set({ type: 'reminder', title: 'Young Soul: ' + card.title, date: card.due, time: '09:00', end: '', priority: 'normal', note: 'Termín realizace nápadu ze záložky Young Soul.', done: false, sample: false, source: 'youngsoul', cardId: card.id, createdAt: Date.now() });
+    else await items.doc(id).delete();
+  }
   const pl = (n, one, few, many) => n + ' ' + (n === 1 ? one : n >= 2 && n <= 4 ? few : many);
 
   const css = document.createElement('style');
@@ -40,6 +50,12 @@
   .ys-log .d{font-family:var(--f-mono);font-size:12px;color:var(--muted)} .ys-log .x{white-space:pre-wrap;overflow-wrap:anywhere}
   .ys-form{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
   .ys-hint{padding:10px 14px;font-size:13px;color:var(--muted)}
+  .ys-add{flex-wrap:wrap} .ys-add input[type=text]{flex:1 1 100%}
+  .ys-add input[type=date]{flex:1 1 auto}
+  .ys-due{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+  .ys-due input{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:2px 6px;min-height:28px;font:inherit;color:var(--fg)}
+  .ys-card.late{border-color:var(--danger)} .ys-card.soon{border-color:var(--remind)}
+  .chip.soon{background:var(--remind-soft);color:var(--remind)}
   `;
   document.head.appendChild(css);
 
@@ -103,17 +119,18 @@
     $('#ysKan').innerHTML = COLS.map(([k, label]) => {
       const cards = S.cards.filter(c => (c.col || 'idea') === k).sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999') || (a.createdAt || 0) - (b.createdAt || 0));
       return `<div class="ys-col" data-col="${k}"><h3><span>${label}</span><span class="mono">${cards.length}</span></h3>
-        ${k === 'idea' ? `<form class="ys-add" data-addcard><input aria-label="Nový nápad" placeholder="Nový úkol…" maxlength="160"><button class="ys-mini" type="submit">Přidat</button></form>` : ''}
-        ${cards.map(c => `<div class="ys-card">
+        ${k === 'idea' ? `<form class="ys-add" data-addcard><input type="text" aria-label="Nový nápad" placeholder="Nový nápad…" maxlength="160"><label class="ys-due" style="flex:1 1 auto">Zrealizovat do <input type="date" style="flex:1"></label><button class="ys-mini" type="submit">Přidat</button></form>` : ''}
+        ${cards.map(c => { const st = k !== 'done' ? dueState(c.due) : ''; return `<div class="ys-card ${st}">
           <div class="t">${esc(c.title)}</div>
+          ${st === 'late' ? '<span class="chip late" style="align-self:flex-start">Po termínu</span>' : st === 'soon' ? '<span class="chip soon" style="align-self:flex-start">Blíží se termín</span>' : ''}
           ${c.note ? `<div class="note" style="margin:0">${esc(c.note)}</div>` : ''}
-          ${c.due || c.mailUrl ? `<div class="meta" style="margin:0">${c.due ? 'do ' + shortD(c.due) : ''}${c.mailUrl ? ` <a href="${esc(c.mailUrl)}" target="_blank" rel="noopener">e-mail</a>` : ''}</div>` : ''}
+          ${c.mailUrl ? `<div class="meta" style="margin:0"><a href="${esc(c.mailUrl)}" target="_blank" rel="noopener">e-mail</a></div>` : ''}
+          ${k !== 'done' ? `<label class="ys-due">Zrealizovat do <input type="date" data-duein="${c.id}" value="${esc(c.due || '')}"></label>` : (c.due ? `<div class="meta" style="margin:0">termín byl ${shortD(c.due)}</div>` : '')}
           <div class="acts">
             ${k !== 'idea' ? `<button class="ys-mini" data-mv="${c.id}" data-to="${k === 'done' ? 'doing' : 'idea'}" aria-label="Posunout zpět">←</button>` : ''}
             ${k !== 'done' ? `<button class="ys-mini" data-mv="${c.id}" data-to="${k === 'idea' ? 'doing' : 'done'}" aria-label="Posunout dál">→</button>` : ''}
-            <button class="ys-mini" data-due="${c.id}">Termín</button>
             <button class="ys-mini danger${S.armed === c.id ? ' armed' : ''}" data-delcard="${c.id}">${S.armed === c.id ? 'Opravdu smazat?' : 'Smazat'}</button>
-          </div></div>`).join('') || (k === 'idea' ? '' : '<div class="ys-hint" style="padding:4px 2px">Zatím nic.</div>')}
+          </div></div>`; }).join('') || (k === 'idea' ? '' : '<div class="ys-hint" style="padding:4px 2px">Zatím nic.</div>')}
       </div>`;
     }).join('');
 
@@ -150,8 +167,10 @@
   root.addEventListener('submit', async e => {
     e.preventDefault();
     if (e.target.matches('[data-addcard]')) {
-      const inp = e.target.querySelector('input'); const t = inp.value.trim(); if (!t) return;
-      await C.cards.add({ title: t, col: 'idea', createdAt: now() }); inp.value = ''; inp.focus();
+      const inp = e.target.querySelector('input[type=text]'), di = e.target.querySelector('input[type=date]'); const t = inp.value.trim(); if (!t) return;
+      const card = { title: t, col: 'idea', due: di.value || '', createdAt: now() };
+      const ref = await C.cards.add(card); if (card.due) await syncReminder({ ...card, id: ref.id });
+      inp.value = ''; di.value = ''; inp.focus();
     } else if (e.target.id === 'ysMsForm') {
       const obj = { name: $('#ysMsName').value.trim(), date: $('#ysMsDate').value, pct: Math.max(0, Math.min(100, Number($('#ysMsPct').value) || 0)), note: $('#ysMsNote').value.trim() };
       if (!obj.name) return;
@@ -171,22 +190,20 @@
     if (b.id === 'ysMsDel') { if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = 'Opravdu smazat?'; return; } await C.ms.doc(S.editMs).delete(); return closeMs(); }
     if (b.id === 'ysMailToggle') { S.showDoneMail = !S.showDoneMail; return render(); }
     if (b.dataset.ms) return openMs(S.ms.find(m => m.id === b.dataset.ms));
-    if (b.dataset.mv) return C.cards.doc(b.dataset.mv).update({ col: b.dataset.to, movedAt: now() });
-    if (b.dataset.due) {
-      const c = S.cards.find(x => x.id === b.dataset.due); const inp = document.createElement('input'); inp.type = 'date'; inp.value = c?.due || '';
-      inp.style.cssText = 'position:fixed;opacity:0;pointer-events:none'; document.body.appendChild(inp);
-      inp.addEventListener('change', async () => { await C.cards.doc(c.id).update({ due: inp.value }); inp.remove(); });
-      inp.addEventListener('blur', () => setTimeout(() => inp.remove(), 300));
-      try { inp.showPicker(); } catch (_) { inp.style.cssText = ''; b.after(inp); inp.focus(); }
-      return;
-    }
-    if (b.dataset.delcard) { if (S.armed !== b.dataset.delcard) { S.armed = b.dataset.delcard; return render(); } S.armed = null; return C.cards.doc(b.dataset.delcard).delete(); }
+    if (b.dataset.mv) { const c = S.cards.find(x => x.id === b.dataset.mv); await C.cards.doc(c.id).update({ col: b.dataset.to, movedAt: now() }); if (c.due) await syncReminder({ ...c, col: b.dataset.to }); return; }
+    if (b.dataset.delcard) { if (S.armed !== b.dataset.delcard) { S.armed = b.dataset.delcard; return render(); } S.armed = null; const c = S.cards.find(x => x.id === b.dataset.delcard); await C.cards.doc(c.id).delete(); if (c.due) await syncReminder({ ...c, _gone: true }); return; }
     if (b.dataset.mailcard) {
       const m = S.mail.find(x => x.id === b.dataset.mailcard);
       const ref = await C.cards.add({ title: m.subject || 'E-mail od ' + m.from, note: 'Od: ' + m.from, col: 'idea', mailUrl: m.url || '', createdAt: now() });
       return C.mail.doc(m.id).update({ cardId: ref.id });
     }
     if (b.dataset.maildone) { const m = S.mail.find(x => x.id === b.dataset.maildone); return C.mail.doc(m.id).update({ handled: !m.handled }); }
+  });
+  root.addEventListener('change', async e => {
+    const i = e.target.closest('[data-duein]'); if (!i) return;
+    const c = S.cards.find(x => x.id === i.dataset.duein); if (!c) return;
+    await C.cards.doc(c.id).update({ due: i.value });
+    await syncReminder({ ...c, due: i.value });
   });
   root.addEventListener('keydown', e => { const r = e.target.closest && e.target.closest('[data-ms]'); if (r && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openMs(S.ms.find(m => m.id === r.dataset.ms)); } });
 
