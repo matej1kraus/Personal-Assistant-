@@ -209,6 +209,7 @@ h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,4vw,34px);l
   <nav class="viewnav" aria-label="Části listu">
     <a href="#ukoly" id="navWork" aria-current="page">Úkoly a kalendář</a>
     <a href="#finance" id="navFin">Finance</a>
+    <a href="#youngsoul" id="navYS">Young Soul</a>
   </nav>
 
   <div id="viewWork" class="view">
@@ -289,6 +290,8 @@ h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,4vw,34px);l
     </div>
   </div>
   </div>
+
+  <div id="viewYS" class="view" hidden></div>
 
   <div id="viewFin" class="view" hidden>
     <div class="fin-sum" id="finSum"></div>
@@ -728,16 +731,17 @@ h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,4vw,34px);l
   document.addEventListener('keydown', e=>{ const r=e.target.closest&&e.target.closest('[data-pedit]'); if(r&&(e.key==='Enter'||e.key===' ')){ e.preventDefault(); openForm(items.find(i=>i.id===r.dataset.pedit)); } });
 
   /* views */
-  let view = location.hash==='#finance' ? 'fin' : 'work';
+  const pick = h => h==='#finance' ? 'fin' : h==='#youngsoul' ? 'ys' : 'work';
+  let view = pick(location.hash);
   function route(){
-    const fin = view==='fin';
-    $('#viewFin').hidden=!fin; $('#viewWork').hidden=fin;
-    $('#navFin').toggleAttribute('aria-current',fin); $('#navWork').toggleAttribute('aria-current',!fin);
-    if(fin) $('#navFin').setAttribute('aria-current','page'); else $('#navWork').setAttribute('aria-current','page');
-    $('#stats').hidden = fin;
+    const fin = view==='fin', ys = view==='ys';
+    $('#viewFin').hidden=!fin; $('#viewWork').hidden=fin||ys; $('#viewYS').hidden=!ys;
+    ['#navWork','#navFin','#navYS'].forEach(s=>$(s).removeAttribute('aria-current'));
+    $(fin?'#navFin':ys?'#navYS':'#navWork').setAttribute('aria-current','page');
+    $('#stats').hidden = fin||ys;
   }
-  window.addEventListener('hashchange',()=>{ view = location.hash==='#finance'?'fin':'work'; route(); });
-  document.querySelectorAll('.viewnav a').forEach(a=>a.addEventListener('click',e=>{ e.preventDefault(); view = a.id==='navFin'?'fin':'work'; try{ history.replaceState(null,'',a.getAttribute('href')); }catch(_){} route(); }));
+  window.addEventListener('hashchange',()=>{ view = pick(location.hash); route(); });
+  document.querySelectorAll('.viewnav a').forEach(a=>a.addEventListener('click',e=>{ e.preventDefault(); view = pick(a.getAttribute('href')); try{ history.replaceState(null,'',a.getAttribute('href')); }catch(_){} route(); }));
   route(); render();
 
   (async ()=>{
@@ -776,5 +780,6 @@ h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,4vw,34px);l
   if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
 </script>
+<script src="youngsoul.js"></script>
 </body>
 </html>
