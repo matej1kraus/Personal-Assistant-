@@ -210,6 +210,7 @@ h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,4vw,34px);l
     <a href="#ukoly" id="navWork" aria-current="page">Úkoly a kalendář</a>
     <a href="#finance" id="navFin">Finance</a>
     <a href="#youngsoul" id="navYS">Young Soul</a>
+    <a href="#jamesdean" id="navJD">James Dean</a>
   </nav>
 
   <div id="viewWork" class="view">
@@ -292,6 +293,8 @@ h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,4vw,34px);l
   </div>
 
   <div id="viewYS" class="view" hidden></div>
+
+  <div id="viewJD" class="view" hidden></div>
 
   <div id="viewFin" class="view" hidden>
     <div class="fin-sum" id="finSum"></div>
@@ -419,6 +422,7 @@ h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,4vw,34px);l
     if (i.priority==='high' && !i.done) when.push('<span class="chip hi">Vysoká priorita</span>');
     if (late) when.push('<span class="chip late">Po termínu</span>');
     if (i.sample) when.push('<span class="chip sample">ukázka</span>');
+    if (i.area==='jd') when.push('<span class="chip">James Dean</span>');
     const time = i.time ? `<span class="time">${esc(i.time)}${i.end?'–'+esc(i.end):''}</span>` : '<span></span>';
     return `<li class="item k-${i.type}${i.done?' done':''}${late?' overdue':''}">
       ${lead}
@@ -731,14 +735,14 @@ h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,4vw,34px);l
   document.addEventListener('keydown', e=>{ const r=e.target.closest&&e.target.closest('[data-pedit]'); if(r&&(e.key==='Enter'||e.key===' ')){ e.preventDefault(); openForm(items.find(i=>i.id===r.dataset.pedit)); } });
 
   /* views */
-  const pick = h => h==='#finance' ? 'fin' : h==='#youngsoul' ? 'ys' : 'work';
+  const pick = h => h==='#finance' ? 'fin' : h==='#youngsoul' ? 'ys' : h==='#jamesdean' ? 'jd' : 'work';
   let view = pick(location.hash);
   function route(){
-    const fin = view==='fin', ys = view==='ys';
-    $('#viewFin').hidden=!fin; $('#viewWork').hidden=fin||ys; $('#viewYS').hidden=!ys;
-    ['#navWork','#navFin','#navYS'].forEach(s=>$(s).removeAttribute('aria-current'));
-    $(fin?'#navFin':ys?'#navYS':'#navWork').setAttribute('aria-current','page');
-    $('#stats').hidden = fin||ys;
+    const fin = view==='fin', ys = view==='ys', jd = view==='jd';
+    $('#viewFin').hidden=!fin; $('#viewWork').hidden=fin||ys||jd; $('#viewYS').hidden=!ys; $('#viewJD').hidden=!jd;
+    ['#navWork','#navFin','#navYS','#navJD'].forEach(s=>$(s).removeAttribute('aria-current'));
+    $(fin?'#navFin':ys?'#navYS':jd?'#navJD':'#navWork').setAttribute('aria-current','page');
+    $('#stats').hidden = fin||ys||jd;
   }
   window.addEventListener('hashchange',()=>{ view = pick(location.hash); route(); });
   document.querySelectorAll('.viewnav a').forEach(a=>a.addEventListener('click',e=>{ e.preventDefault(); view = pick(a.getAttribute('href')); try{ history.replaceState(null,'',a.getAttribute('href')); }catch(_){} route(); }));
@@ -781,5 +785,6 @@ h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,4vw,34px);l
 })();
 </script>
 <script src="youngsoul.js"></script>
+<script src="jamesdean.js"></script>
 </body>
 </html>
